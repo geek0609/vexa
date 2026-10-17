@@ -5,7 +5,7 @@ import { MeetingHealthBanner } from "./MeetingHealthBanner";
 import { LiveTranscriptEngine, type EngineActions, type EngineEntity, type EngineSignal } from "./LiveTranscriptEngine";
 import { useMeetingNotes } from "./notes";
 import { deriveProcessingView } from "./processingView";
-import { MeetingScopeProvider, MeetingSourceProvider, useEntities, useMeeting, useSignals } from "./useMeeting";
+import { MeetingScopeProvider, MeetingSourceProvider, useEntities, useMeeting, useMeetingSource, useSignals } from "./useMeeting";
 
 export const MEETING_CANVAS_CONTENT_INSET = 18;
 
@@ -136,6 +136,18 @@ function MeetingCanvasBody({ meetingId }: { meetingId?: string }) {
 }
 
 export function MeetingCanvasView({ meetingId }: { meetingId?: string }) {
+  // A host that already sources this meeting (the meeting tab, whose header reads the same state)
+  // shares its one live subscription instead of opening a second.
+  const hosted = useMeetingSource() !== null;
+  if (hosted) {
+    return (
+      <MeetingScopeProvider meetingId={meetingId}>
+        <CanvasActionsProvider>
+          <MeetingCanvasBody meetingId={meetingId} />
+        </CanvasActionsProvider>
+      </MeetingScopeProvider>
+    );
+  }
   return (
     <MeetingScopeProvider meetingId={meetingId}>
       <MeetingSourceProvider meetingId={meetingId}>

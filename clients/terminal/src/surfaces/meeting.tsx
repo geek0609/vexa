@@ -10,6 +10,7 @@ import { registerList, registerTab, registerCommand, type TabProps } from "../co
 import { Icon } from "../ui-kit";
 import { ContextMenu, copyText } from "../ui-kit/ContextMenu";
 import { MEETING_CANVAS_CONTENT_INSET, MeetingCanvasView } from "../canvas/MeetingCanvasView";
+import { MeetingScopeProvider, MeetingSourceProvider, useSpeakers } from "../canvas/useMeeting";
 import { type MeetingMock } from "./meetingModel";
 import { ApiError, presentError, readApiFailure } from "./apiClient";
 import { resolveJoinError, serviceDenialFromError, type ServiceDenialPresentation } from "./serviceDenial";
@@ -903,6 +904,18 @@ export function MeetingNotFound({ meetingId, onOpenToday }: { meetingId: string;
   );
 }
 
+/** Who is in the room: the known roster plus everyone heard on the transcript so far (the bot itself
+ *  never speaks, so it is not counted). Reads the meeting source the tab shares with its canvas. */
+function RoomCount({ m }: { m: MeetingMock }) {
+  const speakers = useSpeakers();
+  const names = new Set([...m.participants.map((p) => p.name), ...speakers.map((s) => s.name)]);
+  return (
+    <span style={{ color: "var(--t3)", flex: "none" }} title={[...names].join(", ") || undefined}>
+      {names.size} in the room
+    </span>
+  );
+}
+
 function MeetingTab({ params }: TabProps) {
   const layout = useService(LayoutServiceId);
   const liveList = useLiveMeetings();
@@ -929,6 +942,8 @@ function MeetingTab({ params }: TabProps) {
   }
 
   return (
+    <MeetingScopeProvider meetingId={requestedMeetingId}>
+    <MeetingSourceProvider meetingId={requestedMeetingId}>
     <div style={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", padding: "16px 0 24px", boxSizing: "border-box" }}>
       <header style={{ flex: "none", marginBottom: 16, padding: `0 ${MEETING_CANVAS_CONTENT_INSET}px`, boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 13, minWidth: 0 }}>
@@ -943,7 +958,7 @@ function MeetingTab({ params }: TabProps) {
             <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--t3)", flex: "none" }} />
             <span style={{ color: "var(--t1)", fontWeight: 550, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m ? (m.title_custom ?? (m.native_id ?? m.title).replace(/^Google Meet · /, "")) : "Meeting"}</span>
             {m && <span style={{ color: "var(--t3)", flex: "none", fontSize: 12 }}>{m.platform}</span>}
-            {m && <span style={{ color: "var(--t3)", flex: "none" }}>{m.participants.length} in the room</span>}
+            {m && <RoomCount m={m} />}
           </div>
           <div style={{ flex: 1 }} />
           {m && <BotControls m={m} connected={connected} />}
@@ -955,6 +970,8 @@ function MeetingTab({ params }: TabProps) {
         <MeetingCanvasView key={requestedMeetingId} meetingId={requestedMeetingId} />
       </div>
     </div>
+    </MeetingSourceProvider>
+    </MeetingScopeProvider>
   );
 }
 
