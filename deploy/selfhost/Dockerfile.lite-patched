@@ -1,0 +1,32 @@
+# Vexa Lite with this fork's terminal and meeting-bot changes. Rebuilds the Next.js terminal exactly
+# as deploy/lite/Dockerfile.lite's terminal-builder stage does and recompiles the bot, then swaps both
+# into the published Lite image (same arch-neutral control plane).
+#   docker build -f deploy/selfhost/Dockerfile.lite-patched --build-arg VEXA_VERSION=v0.12.28 .
+# Context: repo root. Keep VEXA_VERSION equal to the upstream tag last merged into this branch.
+ARG VEXA_VERSION=v0.12.28
+
+FROM mcr.microsoft.com/playwright:v1.56.0-noble AS terminal-builder
+WORKDIR /app/terminal
+COPY clients/terminal/package.json clients/terminal/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY clients/terminal/ ./
+RUN npm run build && npm prune --omit=dev
+
+# The meeting bot recompiled from this fork's sources, inside the published image's own workspace
+# (its node_modules + sibling package builds are what the bot's tsc resolves against).
+FROM vexaai/vexa-lite:${VEXA_VERSION} AS bot-builder
+WORKDIR /app/core/meetings/services/bot
+COPY core/meetings/services/bot/src ./src
+RUN rm -rf dist && npm run build
+
+FROM vexaai/vexa-lite:${VEXA_VERSION}
+# Authenticated bots restore/write back their Google session with the aws CLI (remote-browser
+# session-store), which Lite does not ship. 2.22.x predates the CLI's default CRC checksums.
+ARG AWSCLI_VERSION=2.22.35
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m)-${AWSCLI_VERSION}.zip" -o /tmp/awscli.zip \
+ && unzip -q /tmp/awscli.zip -d /tmp && /tmp/aws/install && rm -rf /tmp/aws /tmp/awscli.zip \
+ && aws --version
+RUN rm -rf /app/terminal
+COPY --from=terminal-builder /app/terminal /app/terminal
+COPY --from=bot-builder /app/core/meetings/services/bot/dist /app/core/meetings/services/bot/dist

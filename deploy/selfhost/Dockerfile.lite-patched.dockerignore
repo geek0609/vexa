@@ -1,0 +1,7 @@
+# BuildKit uses THIS file (next to the Dockerfile) instead of the root .dockerignore, which drops
+# clients/. This build only needs the terminal and meeting-bot sources.
+*
+!clients/terminal
+!core/meetings/services/bot/src
+clients/terminal/node_modules
+clients/terminal/.next
